@@ -1,5 +1,3 @@
-// cat follow mouse real !!1!1!111!11!
-
 #define _POSIX_C_SOURCE 200809L
 
 #include <gtk/gtk.h>
@@ -126,8 +124,10 @@ static gboolean draw(GtkWidget *widget, cairo_t *cr, gpointer data) {
 
 static void shape_input(GtkWidget *widget, gpointer data) {
     (void)data;
-    GdkWindow *window = gtk_widget_get_window(widget);
+    if (!gtk_widget_get_realized(widget)) return;
     cairo_region_t *region = cairo_region_create();
+    gtk_widget_input_shape_combine_region(widget, region);
+    GdkWindow *window = gtk_widget_get_window(widget);
     gdk_window_input_shape_combine_region(window, region, 0, 0);
     gdk_window_set_pass_through(window, TRUE);
     cairo_region_destroy(region);
@@ -222,6 +222,7 @@ static void move_window(Neko *app) {
     int y = (int)round(app->neko_y - app->monitor_rect.y - 16);
     gtk_layer_set_margin(GTK_WINDOW(app->window), GTK_LAYER_SHELL_EDGE_LEFT, x);
     gtk_layer_set_margin(GTK_WINDOW(app->window), GTK_LAYER_SHELL_EDGE_TOP, y);
+    shape_input(app->window, NULL);
     gtk_widget_queue_draw(app->window);
 }
 
@@ -372,17 +373,25 @@ int main(int argc, char **argv) {
     set_sprite(&app, SPRITE_IDLE, 0);
     app.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_decorated(GTK_WINDOW(app.window), FALSE);
+    gtk_window_set_accept_focus(GTK_WINDOW(app.window), FALSE);
+    gtk_window_set_focus_on_map(GTK_WINDOW(app.window), FALSE);
+    gtk_window_set_skip_taskbar_hint(GTK_WINDOW(app.window), TRUE);
+    gtk_window_set_skip_pager_hint(GTK_WINDOW(app.window), TRUE);
+    gtk_widget_set_can_focus(app.window, FALSE);
     gtk_window_set_default_size(GTK_WINDOW(app.window), 32, 32);
     gtk_widget_set_size_request(app.window, 32, 32);
     gtk_widget_set_app_paintable(app.window, TRUE);
     gtk_layer_init_for_window(GTK_WINDOW(app.window));
     gtk_layer_set_namespace(GTK_WINDOW(app.window), "oneko-hypr");
     gtk_layer_set_layer(GTK_WINDOW(app.window), GTK_LAYER_SHELL_LAYER_OVERLAY);
+    gtk_layer_set_keyboard_mode(GTK_WINDOW(app.window), GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
+    gtk_layer_set_exclusive_zone(GTK_WINDOW(app.window), -1);
     gtk_layer_set_anchor(GTK_WINDOW(app.window), GTK_LAYER_SHELL_EDGE_TOP, TRUE);
     gtk_layer_set_anchor(GTK_WINDOW(app.window), GTK_LAYER_SHELL_EDGE_LEFT, TRUE);
     gtk_layer_set_monitor(GTK_WINDOW(app.window), app.monitor);
     g_signal_connect(app.window, "draw", G_CALLBACK(draw), &app);
     g_signal_connect(app.window, "realize", G_CALLBACK(shape_input), NULL);
+    g_signal_connect(app.window, "size-allocate", G_CALLBACK(shape_input), NULL);
     g_signal_connect(app.window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
     gtk_widget_show_all(app.window);
     move_window(&app);
